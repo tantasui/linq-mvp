@@ -1,0 +1,86 @@
+env: "production"
+version: "1.0.0"
+
+defaults:
+  enabled: false
+  from_latest: false          # catch up from start_block, not just latest
+  poll_interval: "1s"
+  reorg_rollback_window: 10
+  client:
+    timeout: "15s"
+    max_retries: 3
+    retry_delay: "2s"
+  throttle:
+    batch_size: 200
+    concurrency: 8
+
+chains:
+  sui_mainnet:
+    enabled: true
+    network_id: "sui_mainnet"
+    internal_code: "SUI_MAINNET"
+    type: "sui"
+    # Set this to a recent checkpoint to avoid syncing from genesis.
+    # Get the current checkpoint: curl https://fullnode.mainnet.sui.io -X POST -H "content-type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"sui_getLatestCheckpointSequenceNumber"}'
+    start_block: 0
+    poll_interval: "1s"
+    nodes:
+      - url: "fullnode.mainnet.sui.io:443"
+      - url: "sui-mainnet.nodeinfra.com:443"
+    client:
+      timeout: "12s"
+      max_retries: 2
+      retry_delay: "1s"
+    throttle:
+      batch_size: 200
+      concurrency: 12
+      parallel: true
+
+services:
+  port: 9090
+
+  worker:
+    regular:
+      enabled: true
+    catchup:
+      enabled: true
+    rescanner:
+      enabled: true
+    manual:
+      enabled: false
+    mempool:
+      enabled: false
+
+  nats:
+    url: "nats://nats:4222"
+    # No subject_prefix — publishes to "transfer.event.dispatch" directly
+    username: ""
+    password: ""
+
+  database:
+    url: "postgres://postgres:postgres@postgres:5432/postgres"
+
+  redis:
+    url: "redis:6379"
+    password: ""
+
+  kvstore:
+    type: "consul"
+    consul:
+      scheme: "http"
+      address: "consul:8500"
+      folder: "mvp-indexer"
+      token: ""
+
+  bloomfilter:
+    type: "redis"
+    wallet_address_repo: "wallet_addresses"
+    batch_size: 1000
+    redis:
+      key_prefix: "mvp_bloom"
+      error_rate: 0.01
+      capacity: 100000
+    sync:
+      enabled: true
+      interval: "1s"
+      batch_size: 500
