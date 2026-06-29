@@ -11,4 +11,6 @@ services:
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - MVP_PUBLIC_URL=${MVP_PUBLIC_URL}
       - PORT=${PORT:-8080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
