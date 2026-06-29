@@ -14,4 +14,4 @@ COPY --from=build /app/server /app/server
 COPY --from=build /app/migrations /app/migrations
 RUN ls -lh /app/server
 EXPOSE 8080
-ENTRYPOINT ["/app/server"]
+ENTRYPOINT ["/bin/sh", "-c", "/app/server 2>&1; echo \"--- SERVER EXITED code=$? ---\"; sleep 3600"]
