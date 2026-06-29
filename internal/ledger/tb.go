@@ -27,15 +27,19 @@ func NewClient() (*Client, error) {
 		addr = "3001"
 	}
 
+	fmt.Fprintf(os.Stderr, "ledger: calling tigerbeetle.NewClient addr=%s\n", addr)
 	tb, err := tigerbeetle.NewClient(types.ToUint128(0), []string{addr})
+	fmt.Fprintf(os.Stderr, "ledger: tigerbeetle.NewClient returned err=%v\n", err)
 	if err != nil {
 		return nil, fmt.Errorf("ledger: connect: %w", err)
 	}
 
+	fmt.Fprintf(os.Stderr, "ledger: calling ensureTreasury\n")
 	c := &Client{tb: tb}
 	if err := c.ensureTreasury(); err != nil {
 		return nil, err
 	}
+	fmt.Fprintf(os.Stderr, "ledger: ensureTreasury done\n")
 	return c, nil
 }
 
