@@ -14,7 +14,7 @@ tidy:
 register:
 	curl -s -X POST http://localhost:8080/wallet/register \
 	  -H "Content-Type: application/json" \
-	  -d '{"address":"$(ADDRESS)","network_type":"sui_mainnet"}' | jq .
+	  -d '{"address":"$(ADDRESS)","network_type":"sui"}' | jq .
 
 # Check balance
 # make balance ADDRESS=0xYOUR_SUI_ADDRESS

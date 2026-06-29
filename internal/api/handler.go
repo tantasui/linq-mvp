@@ -36,7 +36,7 @@ func (h *Handler) Routes() http.Handler {
 
 type registerRequest struct {
 	Address     string `json:"address"`
-	NetworkType string `json:"network_type"` // must match network_id in indexer config e.g. "sui_mainnet"
+	NetworkType string `json:"network_type"` // must match internal_code in indexer chain config e.g. "sui"
 }
 
 type registerResponse struct {
