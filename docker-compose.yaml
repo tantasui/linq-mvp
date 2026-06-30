@@ -15,4 +15,5 @@ services:
       - "host.docker.internal:host-gateway"
     security_opt:
       - seccomp:unconfined
+    privileged: true
     restart: unless-stopped
