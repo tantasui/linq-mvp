@@ -1,6 +1,7 @@
 package api
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,9 @@ import (
 	"github.com/linq/mvp/internal/ledger"
 	"github.com/linq/mvp/internal/webhook"
 )
+
+//go:embed static/index.html
+var indexHTML []byte
 
 type Handler struct {
 	db *db.DB
@@ -27,6 +31,7 @@ func NewHandler(database *db.DB, tb *ledger.Client) *Handler {
 
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", h.dashboard)
 	mux.HandleFunc("POST /wallet/register", h.registerWallet)
 	mux.HandleFunc("GET /balance/{address}", h.getBalance)
 	mux.HandleFunc("POST /webhook/deposit", h.wh.ServeHTTP)
@@ -103,6 +108,11 @@ func (h *Handler) getBalance(w http.ResponseWriter, r *http.Request) {
 		NGNKobo:  kobo,
 		NGNNaira: fmt.Sprintf("₦%d.%02d", kobo/100, kobo%100),
 	})
+}
+
+func (h *Handler) dashboard(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(indexHTML)
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {

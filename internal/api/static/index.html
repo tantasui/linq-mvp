@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linq MVP</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0f0f10;
+  color: #e1e1e3;
+  min-height: 100vh;
+  padding: 32px 16px;
+}
+.container { max-width: 680px; margin: 0 auto; }
+header { margin-bottom: 28px; }
+header h1 { font-size: 20px; font-weight: 600; color: #fff; }
+header p { font-size: 13px; color: #52525b; margin-top: 5px; }
+.dot {
+  display: inline-block; width: 7px; height: 7px;
+  border-radius: 50%; background: #3f3f46;
+  margin-right: 6px; vertical-align: middle;
+  transition: background 0.3s;
+}
+.dot.ok  { background: #22c55e; }
+.dot.err { background: #ef4444; }
+.card {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+  padding: 22px;
+  margin-bottom: 14px;
+}
+.step { font-size: 10px; font-weight: 700; color: #7c3aed; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 5px; }
+.card h2 { font-size: 14px; font-weight: 600; color: #e4e4e7; margin-bottom: 14px; }
+.hint { font-size: 12px; color: #52525b; line-height: 1.6; margin-bottom: 14px; }
+input, select {
+  width: 100%; background: #09090b; border: 1px solid #27272a;
+  border-radius: 8px; color: #e1e1e3; font-size: 13px;
+  padding: 10px 12px; margin-bottom: 10px; outline: none;
+  font-family: ui-monospace, monospace;
+}
+input:focus, select:focus { border-color: #7c3aed; }
+input[type="password"] { font-family: inherit; }
+input::placeholder { color: #3f3f46; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; margin-bottom: 10px; }
+.row > *:last-child { margin-bottom: 0; }
+button.primary {
+  background: #7c3aed; color: #fff; border: none;
+  border-radius: 8px; padding: 10px 18px; font-size: 13px;
+  font-weight: 600; cursor: pointer; width: 100%; margin-top: 4px;
+}
+button.primary:hover { background: #6d28d9; }
+button.primary:disabled { opacity: .45; cursor: not-allowed; }
+button.ghost {
+  background: #27272a; color: #a1a1aa; border: none;
+  border-radius: 6px; padding: 8px 12px; font-size: 12px;
+  cursor: pointer; width: auto; margin-top: 0;
+}
+button.ghost:hover { background: #3f3f46; }
+.addr-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.addr-row input { flex: 1; margin-bottom: 0; }
+.result {
+  margin-top: 12px; padding: 11px 13px; border-radius: 8px;
+  font-size: 12px; font-family: ui-monospace, monospace; display: none;
+  line-height: 1.5;
+}
+.result.ok  { background: #14532d22; border: 1px solid #22c55e33; color: #86efac; }
+.result.err { background: #7f1d1d22; border: 1px solid #ef444433; color: #fca5a5; }
+.balance-big { font-size: 38px; font-weight: 700; color: #fff; text-align: center; padding: 14px 0 4px; }
+.balance-sub { font-size: 12px; color: #3f3f46; text-align: center; }
+hr { border: none; border-top: 1px solid #27272a; margin: 14px 0; }
+.rate-tag { font-size: 11px; color: #52525b; margin-top: 2px; }
+.mono { font-family: ui-monospace, monospace; font-size: 11px; color: #71717a; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Linq MVP — Naira Ledger</h1>
+    <p><span class="dot" id="dot"></span><span id="status">Connecting…</span></p>
+  </header>
+
+  <!-- Step 1 -->
+  <div class="card">
+    <div class="step">Step 1</div>
+    <h2>Register Wallet</h2>
+    <p class="hint">Register a Sui wallet address. The indexer watches all registered addresses on-chain. Use the Simulate button in Step 3 to test without sending real crypto.</p>
+    <div class="addr-row">
+      <input id="reg-addr" placeholder="0x… Sui address" />
+      <button class="ghost" onclick="genAddr()">generate</button>
+    </div>
+    <button class="primary" onclick="register()">Register</button>
+    <div class="result" id="reg-result"></div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="card">
+    <div class="step">Step 2</div>
+    <h2>Balance</h2>
+    <input id="bal-addr" placeholder="0x… registered address" />
+    <button class="primary" onclick="checkBalance()">Refresh Balance</button>
+    <div id="bal-display" style="display:none">
+      <div class="balance-big" id="bal-ngn">₦0.00</div>
+      <div class="balance-sub" id="bal-kobo"></div>
+    </div>
+    <div class="result" id="bal-result"></div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="card">
+    <div class="step">Step 3 — Test without on-chain tx</div>
+    <h2>Simulate Deposit</h2>
+    <p class="hint">Computes an HMAC-signed webhook and posts it to /webhook/deposit. Needs your <code style="color:#a1a1aa">WEBHOOK_SECRET</code> from Coolify env vars.</p>
+    <input id="sim-addr" placeholder="0x… registered address" />
+    <div class="row">
+      <select id="sim-token" onchange="updateRate()">
+        <option value="usdc">USDC (Sui)</option>
+        <option value="sui">Native SUI</option>
+      </select>
+      <input id="sim-amount" type="number" placeholder="Amount" value="1" min="0.000001" step="any" />
+    </div>
+    <div class="rate-tag" id="rate-tag">1 USDC → ₦1,600.00</div>
+    <hr>
+    <input id="sim-secret" type="password" placeholder="WEBHOOK_SECRET" />
+    <button class="primary" onclick="simulate()">Send Test Deposit</button>
+    <div class="result" id="sim-result"></div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="card">
+    <div class="step">Step 4 — Real on-chain</div>
+    <h2>On-Chain Test</h2>
+    <p class="hint">Send USDC on Sui mainnet to your registered address. The indexer detects it within one block and posts to your webhook automatically.</p>
+    <p class="hint">USDC token on Sui:</p>
+    <p class="mono">0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC</p>
+  </div>
+
+</div>
+
+<script>
+const BASE = window.location.origin;
+
+const USDC = "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC";
+const TOKENS = {
+  usdc: { addr: USDC,  decimals: 6, koboPerUnit: 160000, label: "USDC", rateLabel: "1 USDC → ₦1,600.00" },
+  sui:  { addr: "",    decimals: 9, koboPerUnit: 500,    label: "SUI",  rateLabel: "1 SUI → ₦5.00" },
+};
+
+// Health check
+async function ping() {
+  try {
+    const r = await fetch(`${BASE}/health`);
+    document.getElementById("dot").className = "dot " + (r.ok ? "ok" : "err");
+    document.getElementById("status").textContent = r.ok ? `${BASE} — connected` : `${BASE} — error ${r.status}`;
+  } catch {
+    document.getElementById("dot").className = "dot err";
+    document.getElementById("status").textContent = "Cannot reach backend";
+  }
+}
+ping();
+setInterval(ping, 30000);
+
+function result(id, msg, ok) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = "result " + (ok ? "ok" : "err");
+  el.style.display = "block";
+}
+
+// Register
+async function register() {
+  const addr = document.getElementById("reg-addr").value.trim();
+  if (!addr) return result("reg-result", "Enter an address.", false);
+  try {
+    const r = await fetch(`${BASE}/wallet/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: addr, network_type: "sui" }),
+    });
+    const text = await r.text();
+    if (r.ok) {
+      result("reg-result", `✓ Registered — ${addr}`, true);
+      document.getElementById("bal-addr").value = addr;
+      document.getElementById("sim-addr").value = addr;
+    } else {
+      result("reg-result", `${r.status}: ${text}`, false);
+    }
+  } catch (e) {
+    result("reg-result", `Network error: ${e.message}`, false);
+  }
+}
+
+// Balance
+async function checkBalance() {
+  const addr = document.getElementById("bal-addr").value.trim();
+  if (!addr) return result("bal-result", "Enter an address.", false);
+  try {
+    const r = await fetch(`${BASE}/balance/${encodeURIComponent(addr)}`);
+    if (r.ok) {
+      const d = await r.json();
+      document.getElementById("bal-display").style.display = "block";
+      document.getElementById("bal-ngn").textContent = d.ngn_naira;
+      document.getElementById("bal-kobo").textContent = `${d.ngn_kobo} kobo`;
+      document.getElementById("bal-result").style.display = "none";
+    } else {
+      document.getElementById("bal-display").style.display = "none";
+      result("bal-result", `${r.status}: ${await r.text()}`, false);
+    }
+  } catch (e) {
+    result("bal-result", `Network error: ${e.message}`, false);
+  }
+}
+
+// Rate label
+function updateRate() {
+  const t = TOKENS[document.getElementById("sim-token").value];
+  document.getElementById("rate-tag").textContent = t.rateLabel;
+}
+
+// HMAC-SHA256 via Web Crypto
+async function hmac(secret, message) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig  = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Simulate deposit
+async function simulate() {
+  const addr   = document.getElementById("sim-addr").value.trim();
+  const secret = document.getElementById("sim-secret").value;
+  const amount = parseFloat(document.getElementById("sim-amount").value);
+  const tk     = TOKENS[document.getElementById("sim-token").value];
+
+  if (!addr)            return result("sim-result", "Enter a registered address.", false);
+  if (!secret)          return result("sim-result", "Enter WEBHOOK_SECRET.", false);
+  if (!amount || amount <= 0) return result("sim-result", "Enter a valid amount.", false);
+
+  const rawAmt = String(Math.round(amount * Math.pow(10, tk.decimals)));
+  const txHash = `sim_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const ts     = Math.floor(Date.now() / 1000);
+
+  const body = JSON.stringify({
+    eventType: "payment.confirmed",
+    transaction: {
+      txHash,
+      toAddress:    addr,
+      assetAddress: tk.addr,
+      amount:       rawAmt,
+      status:       "confirmed",
+      direction:    "in",
+    },
+  });
+
+  try {
+    const sig = await hmac(secret, body);
+    const r   = await fetch(`${BASE}/webhook/deposit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Webhook-Signature":  sig,
+        "X-Webhook-Timestamp":  String(ts),
+      },
+      body,
+    });
+    if (r.ok) {
+      const kobo = Math.floor(parseInt(rawAmt, 10) * tk.koboPerUnit / Math.pow(10, tk.decimals));
+      const ngn  = (kobo / 100).toFixed(2);
+      result("sim-result", `✓ Credited ₦${ngn} (${amount} ${tk.label} · txHash: ${txHash})`, true);
+      document.getElementById("bal-addr").value = addr;
+      setTimeout(checkBalance, 400);
+    } else {
+      result("sim-result", `${r.status}: ${await r.text()}`, false);
+    }
+  } catch (e) {
+    result("sim-result", `Error: ${e.message}`, false);
+  }
+}
+
+// Generate random Sui-style address for demo
+function genAddr() {
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+    .map(b => b.toString(16).padStart(2, "0")).join("");
+  document.getElementById("reg-addr").value = "0x" + hex;
+}
+</script>
+</body>
+</html>
