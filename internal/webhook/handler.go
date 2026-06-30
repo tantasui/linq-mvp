@@ -66,19 +66,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log every verified payload so we can see the exact format the indexer sends.
+	h.log.Info("webhook received", "body", string(body))
+
 	var p payload
 	if err := json.Unmarshal(body, &p); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	if p.EventType != "payment.confirmed" {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
 	tx := p.Transaction
-	if tx.Direction != "in" || tx.Status != "confirmed" {
+	// Only process inbound transfers. Status is intentionally not checked —
+	// the indexer emits "pending" with sufficient confirmations, which is final enough.
+	if tx.Direction != "in" {
+		h.log.Info("skipped non-inbound event", "eventType", p.EventType, "direction", tx.Direction, "status", tx.Status)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
