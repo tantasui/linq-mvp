@@ -13,4 +13,6 @@ services:
       - PORT=${PORT:-8080}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    security_opt:
+      - seccomp:unconfined
     restart: unless-stopped
