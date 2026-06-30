@@ -8,7 +8,6 @@ import (
 	"os"
 
 	tigerbeetle "github.com/tigerbeetle/tigerbeetle-go"
-	"github.com/tigerbeetle/tigerbeetle-go/pkg/types"
 )
 
 const (
@@ -27,37 +26,34 @@ func NewClient() (*Client, error) {
 		addr = "3001"
 	}
 
-	fmt.Fprintf(os.Stderr, "ledger: calling tigerbeetle.NewClient addr=%s\n", addr)
-	tb, err := tigerbeetle.NewClient(types.ToUint128(0), []string{addr})
-	fmt.Fprintf(os.Stderr, "ledger: tigerbeetle.NewClient returned err=%v\n", err)
+	tb, err := tigerbeetle.NewClient(tigerbeetle.ToUint128(0), []string{addr})
 	if err != nil {
-		return nil, fmt.Errorf("ledger: connect: %w", err)
+		return nil, fmt.Errorf("tigerbeetle connect cluster=0 addr=%s: %w", addr, err)
 	}
 
-	fmt.Fprintf(os.Stderr, "ledger: calling ensureTreasury\n")
 	c := &Client{tb: tb}
 	if err := c.ensureTreasury(); err != nil {
+		tb.Close()
 		return nil, err
 	}
-	fmt.Fprintf(os.Stderr, "ledger: ensureTreasury done\n")
 	return c, nil
 }
 
 // EnsureAccount creates a TigerBeetle account for an address if it doesn't exist.
 func (c *Client) EnsureAccount(address string) error {
-	id := types.ToUint128(addressToID(address))
-	results, err := c.tb.CreateAccounts([]types.Account{{
+	id := tigerbeetle.ToUint128(addressToID(address))
+	results, err := c.tb.CreateAccounts([]tigerbeetle.Account{{
 		ID:     id,
 		Ledger: LedgerNGN,
 		Code:   1,
-		Flags:  types.AccountFlags{DebitsMustNotExceedCredits: true}.ToUint16(),
+		Flags:  tigerbeetle.AccountFlags{DebitsMustNotExceedCredits: true}.ToUint16(),
 	}})
 	if err != nil {
 		return fmt.Errorf("ledger: create account: %w", err)
 	}
 	for _, r := range results {
-		if r.Result != types.AccountExists {
-			return fmt.Errorf("ledger: create account error: %v", r.Result)
+		if r.Status != tigerbeetle.AccountCreated && r.Status != tigerbeetle.AccountExists {
+			return fmt.Errorf("ledger: create account error: %v", r.Status)
 		}
 	}
 	return nil
@@ -67,11 +63,11 @@ func (c *Client) EnsureAccount(address string) error {
 // amountKobo is the NGN amount in kobo (1 NGN = 100 kobo).
 // txHash is used as the transfer ID for idempotency.
 func (c *Client) CreditDeposit(address string, amountKobo uint64, txHash string) error {
-	results, err := c.tb.CreateTransfers([]types.Transfer{{
+	results, err := c.tb.CreateTransfers([]tigerbeetle.Transfer{{
 		ID:              hashToUint128(txHash),
-		DebitAccountID:  types.ToUint128(treasuryAccountID),
-		CreditAccountID: types.ToUint128(addressToID(address)),
-		Amount:          types.ToUint128(amountKobo),
+		DebitAccountID:  tigerbeetle.ToUint128(treasuryAccountID),
+		CreditAccountID: tigerbeetle.ToUint128(addressToID(address)),
+		Amount:          tigerbeetle.ToUint128(amountKobo),
 		Ledger:          LedgerNGN,
 		Code:            CodeDeposit,
 	}})
@@ -79,8 +75,8 @@ func (c *Client) CreditDeposit(address string, amountKobo uint64, txHash string)
 		return fmt.Errorf("ledger: credit deposit: %w", err)
 	}
 	for _, r := range results {
-		if r.Result != types.TransferExists {
-			return fmt.Errorf("ledger: transfer error: %v", r.Result)
+		if r.Status != tigerbeetle.TransferCreated && r.Status != tigerbeetle.TransferExists {
+			return fmt.Errorf("ledger: transfer error: %v", r.Status)
 		}
 	}
 	return nil
@@ -88,8 +84,8 @@ func (c *Client) CreditDeposit(address string, amountKobo uint64, txHash string)
 
 // Balance returns the NGN balance in kobo for an address.
 func (c *Client) Balance(address string) (uint64, error) {
-	id := types.ToUint128(addressToID(address))
-	accounts, err := c.tb.LookupAccounts([]types.Uint128{id})
+	id := tigerbeetle.ToUint128(addressToID(address))
+	accounts, err := c.tb.LookupAccounts([]tigerbeetle.Uint128{id})
 	if err != nil {
 		return 0, fmt.Errorf("ledger: lookup: %w", err)
 	}
@@ -99,7 +95,7 @@ func (c *Client) Balance(address string) (uint64, error) {
 	a := accounts[0]
 	credits := a.CreditsPosted.BigInt()
 	debits := a.DebitsPosted.BigInt()
-	balance := new(big.Int).Sub(&credits, &debits)
+	balance := new(big.Int).Sub(credits, debits)
 	if !balance.IsUint64() {
 		return 0, errors.New("ledger: balance overflow")
 	}
@@ -111,8 +107,8 @@ func (c *Client) Close() {
 }
 
 func (c *Client) ensureTreasury() error {
-	results, err := c.tb.CreateAccounts([]types.Account{{
-		ID:     types.ToUint128(treasuryAccountID),
+	results, err := c.tb.CreateAccounts([]tigerbeetle.Account{{
+		ID:     tigerbeetle.ToUint128(treasuryAccountID),
 		Ledger: LedgerNGN,
 		Code:   1,
 		Flags:  0,
@@ -121,8 +117,8 @@ func (c *Client) ensureTreasury() error {
 		return fmt.Errorf("ledger: ensure treasury: %w", err)
 	}
 	for _, r := range results {
-		if r.Result != types.AccountExists {
-			return fmt.Errorf("ledger: treasury account error: %v", r.Result)
+		if r.Status != tigerbeetle.AccountCreated && r.Status != tigerbeetle.AccountExists {
+			return fmt.Errorf("ledger: treasury account error: %v", r.Status)
 		}
 	}
 	return nil
@@ -137,7 +133,7 @@ func addressToID(address string) uint64 {
 }
 
 // hashToUint128 derives a stable transfer ID from a tx hash.
-func hashToUint128(s string) types.Uint128 {
+func hashToUint128(s string) tigerbeetle.Uint128 {
 	b := []byte(s)
 	if len(b) < 16 {
 		padded := make([]byte, 16)
@@ -146,5 +142,5 @@ func hashToUint128(s string) types.Uint128 {
 	}
 	var arr [16]byte
 	copy(arr[:], b[:16])
-	return types.BytesToUint128(arr)
+	return tigerbeetle.BytesToUint128(arr)
 }

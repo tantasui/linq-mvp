@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/jackc/pgx/v5 v5.7.5
-	github.com/tigerbeetle/tigerbeetle-go v0.16.11
+	github.com/tigerbeetle/tigerbeetle-go v0.17.7
 )
 
 require (
